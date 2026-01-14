@@ -1,0 +1,51 @@
+#include <Wire.h>
+#include <DHT.h>
+
+#define SLAVE_ADDRESS 0x04  // I2C slave cím (ESP32 master olvassa)
+#define DHTPIN 4            // DHT szenzor az Arduino 4-es pinjén
+#define DHTTYPE DHT11       // DHT11 (vagy DHT22-re cserélheted)
+
+DHT dht(DHTPIN, DHTTYPE);
+
+// Globális változók
+volatile float lastTemp = 0.0;
+volatile float lastHum = 0.0;
+char dataBuffer[32];
+
+void setup() {
+  Serial.begin(9600);
+  Wire.begin(SLAVE_ADDRESS);
+  Wire.onRequest(sendData);
+  dht.begin();
+  Serial.println("I2C DHT11 Szenzor elindult (ESP32-vel WiFi setup)...");
+}
+
+void loop() {
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  if (!isnan(h) && !isnan(t)) {
+    lastTemp = t;
+    lastHum = h;
+    Serial.print("Szenzor: ");
+    Serial.print(lastTemp);
+    Serial.print(" C, ");
+    Serial.print(lastHum);
+    Serial.println(" %");
+  } else {
+    Serial.println("Hiba: DHT olvasás sikertelen!");
+  }
+  delay(2000);
+}
+
+void sendData() {
+  if (lastTemp == 0.0 && lastHum == 0.0) {
+    Wire.write("0.0,0.0");
+    return;
+  }
+  char tStr[7], hStr[7];
+  dtostrf(lastTemp, 5, 2, tStr);
+  dtostrf(lastHum, 5, 2, hStr);
+  memset(dataBuffer, 0, sizeof(dataBuffer));
+  sprintf(dataBuffer, "%s,%s", tStr, hStr);
+  Wire.write(dataBuffer);
+}
