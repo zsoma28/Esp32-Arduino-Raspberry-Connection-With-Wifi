@@ -1,0 +1,45 @@
+from flask import Flask, request
+import requests
+import time
+
+app = Flask(__name__)
+
+API_KEY = "123456789"  # A te API kulcsod
+API_URL_BASE = "http://192.168.0.181/sensor/insert_data_apikey.php"
+
+def send_data_to_api(temperature, humidity):
+    url = f"{API_URL_BASE}?api_key={API_KEY}&temperature={temperature}&humidity={humidity}"
+    print(f"Küldési URL: {url}")
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            print(f"Sikeres API küldés! Válasz: {response.text.strip()}")
+        else:
+            print(f"API hiba: {response.status_code} - {response.text.strip()}")
+    except requests.exceptions.RequestException as e:
+        print(f"Hálózati hiba: {e}")
+
+@app.route('/receive', methods=['POST'])
+def receive_data():
+    data = request.form.get('temp_hum')
+    if data:
+        try:
+            parts = data.split(',')
+            if len(parts) == 2:
+                temperature = float(parts[0].strip())
+                humidity = float(parts[1].strip())
+                print(f"Fogadott WiFi adat: Hő: {temperature:.2f} °C, Pára: {humidity:.2f} %")
+                
+                # Küldés a te API-dra
+                send_data_to_api(temperature, humidity)
+                
+                return "Sikeres fogadás!", 200
+            else:
+                return "Hibás formátum!", 400
+        except ValueError:
+            return "Érvénytelen adatok!", 400
+    return "Nincs adat!", 400
+
+if __name__ == '__main__':
+    print("WiFi szerver indítása Raspberry Pi-n...")
+    app.run(host='0.0.0.0', port=5000)  # Hallgat minden IP-n, port 5000
