@@ -1,0 +1,50 @@
+#include <Wire.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+#define I2C_SLAVE_ADDR 0x04
+#define WIFI_SSID "A_WiFi_Nev"  // Saját SSID
+#define WIFI_PASS "A_Jelszo"    // Saját jelszó
+#define SERVER_URL "http://RASPBERRY_PI_IP:5000/receive"  // Pi szerver URL-je (lásd alább, cseréld IP-t pl. 192.168.0.100-ra)
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();  // I2C master
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("WiFi csatlakozás...");
+  }
+  Serial.println("WiFi OK!");
+}
+
+void loop() {
+  Wire.requestFrom(I2C_SLAVE_ADDR, 32);
+  String data = "";
+  while (Wire.available()) {
+    char c = Wire.read();
+    if (c != '\0') data += c;
+  }
+  
+  if (data.length() > 0) {
+    Serial.print("Adat Arduino-tól: ");
+    Serial.println(data);
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      http.begin(SERVER_URL);
+      http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+      String postData = "temp_hum=" + data;  // "temp_hum=24.50,55.00"
+      int httpCode = http.POST(postData);
+      if (httpCode > 0) {
+        Serial.println("Küldve Pi-nek: HTTP " + String(httpCode));
+      } else {
+        Serial.println("Küldési hiba: " + http.errorToString(httpCode));
+      }
+      http.end();
+    }
+  } else {
+    Serial.println("Nincs adat!");
+  }
+  delay(10000);  // 10 mp-ként (mint a te kódodban)
+}
